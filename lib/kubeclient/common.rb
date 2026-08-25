@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'json'
 require 'rest-client'
 
@@ -35,8 +37,6 @@ module Kubeclient
 
     DEFAULT_HTTP_PROXY_URI = nil
     DEFAULT_HTTP_MAX_REDIRECTS = 10
-
-    DEFAULT_BEARER_TOKEN_FILE = '/var/run/secrets/kubernetes.io/serviceaccount/token'
 
     SEARCH_ARGUMENTS = {
       'labelSelector'   => :label_selector,
@@ -80,7 +80,7 @@ module Kubeclient
       @api_version = version
       @headers = {}
       @ssl_options = ssl_options
-      @auth_options = Marshal.load(Marshal.dump(auth_options))
+      @auth_options = auth_options.dup
       @socket_options = socket_options
       # Allow passing partial timeouts hash, without unspecified
       # @timeouts[:foo] == nil resulting in infinite timeout.
@@ -89,25 +89,11 @@ module Kubeclient
       @http_max_redirects = http_max_redirects
       @as = as
 
-      @log = Logger.new(STDOUT)
-      @log.formatter = proc do |severity, datetime, progname, msg|
-          "#{datetime} [#{severity}]: #{msg}\n"
-      end
-
-      if auth_options[:bearer_token]
-        bearer_token(@auth_options[:bearer_token])
-      end
       if auth_options[:bearer_token_file]
         validate_bearer_token_file
-        @log.info("Reading bearer token from #{@auth_options[:bearer_token_file]}")
         bearer_token(File.read(@auth_options[:bearer_token_file]))
-      elsif File.file?(DEFAULT_BEARER_TOKEN_FILE)
-        @auth_options[:bearer_token_file] = DEFAULT_BEARER_TOKEN_FILE
-        validate_bearer_token_file
-        @log.info("Reading bearer token from default location #{DEFAULT_BEARER_TOKEN_FILE}")
-        bearer_token(File.read(@auth_options[:bearer_token_file]))
-      else
-        @log.info("bearer_token_file path not provided. Kubeclient will not be able to refresh the token if it expires")
+      elsif auth_options[:bearer_token]
+        bearer_token(@auth_options[:bearer_token])
       end
     end
 
